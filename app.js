@@ -39,9 +39,9 @@ wss.on('connection', (ws) => {
     const data = JSON.parse(message.toString('utf8'));
     console.log('Received data:', data);
 
-    const { carName, lapTime, driverName, carType, gapTime } = data;
+    // const { carName, lapTime, driverName, carType, gapTime } = data;
 
-    saveRun(data);
+    // saveRun(data);
 
     broadcast(data);
   });
