@@ -1,34 +1,29 @@
+require('dotenv').config();
+
 const express = require('express');
-const WebSocket = require('ws');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
 const cors = require('cors');
-
+const WebSocket = require('ws');
 const mongoose = require('mongoose');
+const app = express();
+
+const PORT = process.env.PORT || 3000;
 const { Overall, BestTime } = require('./models');
 
-mongoose.connect('mongodb://nabiel:nabielmongo20@88.223.95.166:27017/speed_n_adrenaline');
+mongoose.connect(process.env.MONGO_CONNECTION_STRING);
 
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// app.use('/api/drivers', driverRoutes);
-// app.use('/api/runs', runRoutes);
-
 app.post('/api-save-overall', async (req, res) => {
   try {
-    // Extract the first object from the array (if needed)
     const [runsByDriverStore] = req.body;
 
-    // Add a savedAt timestamp
     const dataToSave = {
       ...runsByDriverStore,
       savedAt: new Date()
     };
 
-    // Save the deeply nested document as a single entry in the database
     const result = await Overall.create(dataToSave);
 
     res.status(200).json({ success: true, data: result });
@@ -38,21 +33,17 @@ app.post('/api-save-overall', async (req, res) => {
   }
 });
 
-// Insert data into the `best_time` collection
 app.post('/api-save-best-time', async (req, res) => {
   try {
-    // Flatten the nested array structure
     const flattenedData = req.body.flat();
 
-    // Map the data to exclude `id` and add `savedAt`
     const bestTimesData = {
       drivers: flattenedData.map(({ id, ...rest }) => ({
-        ...rest // Include all other fields
+        ...rest
       })),
-      savedAt: new Date() // Add the current timestamp explicitly
+      savedAt: new Date()
     };
 
-    // Save the single document into the database
     const result = await BestTime.create(bestTimesData);
 
     res.status(200).json({ success: true, data: result });
