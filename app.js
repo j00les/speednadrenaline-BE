@@ -11,7 +11,12 @@ const { Overall, BestTime } = require('./models');
 
 mongoose.connect(process.env.MONGO_CONNECTION_STRING);
 
-app.use(cors());
+app.use(
+  cors({
+    origin: 'https://speednadrenaline.com', // Your frontend domain
+    credentials: true
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
