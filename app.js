@@ -13,7 +13,7 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING);
 
 app.use(
   cors({
-    origin: 'https://speednadrenaline.com', // Your frontend domain
+    origin: ['https://speednadrenaline.com'], // Your frontend domain
     credentials: true
   })
 );
