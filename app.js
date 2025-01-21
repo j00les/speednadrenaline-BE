@@ -62,6 +62,55 @@ app.post('/api-save-best-time', async (req, res) => {
   }
 });
 
+app.get('/api-get-overall', async (req, res) => {
+  try {
+    const overallData = await Overall.find({});
+
+    const getTransformedData = (rawData) => {
+      const from = rawData.find((item) =>
+        Object.keys(item).some(
+          (key) =>
+            !['_id', '__v', 'savedAt', '$__', '$isNew', '_doc'].includes(key) &&
+            typeof item[key] === 'object'
+        )
+      );
+
+      if (!from) {
+        return [];
+      }
+
+      return Object.entries(from || {})
+        .filter(([key]) => !['_id', '__v', 'savedAt', '$__', '$isNew', '_doc'].includes(key))
+        .map(([driverName, cars]) => ({
+          driverName,
+          cars: Object.entries(cars).map(([carName, lapTimes]) => ({
+            carName,
+            lapTimes
+          }))
+        }));
+    };
+
+    const transformedData = getTransformedData(overallData);
+
+    res.status(200).json({ success: true, data: transformedData });
+  } catch (error) {
+    console.error('Error fetching and transforming overall data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch overall data' });
+  }
+});
+
+app.get('/api-get-best-time', async (req, res) => {
+  try {
+    const bestTimeData = await BestTime.find({});
+
+    console.log(bestTimeData, '--debug');
+    res.status(200).json({ success: true, bestTimeData });
+  } catch (error) {
+    console.error('Error fetching and transforming overall data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch overall data' });
+  }
+});
+
 const server = app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
@@ -85,10 +134,6 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     const data = JSON.parse(message.toString('utf8'));
     console.log('Received data:', data);
-
-    // const { carName, lapTime, driverName, carType, gapTime } = data;
-
-    // saveRun(data);
 
     broadcast(data);
   });
