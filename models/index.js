@@ -1,5 +1,7 @@
-const driverModel = require('./driver');
+const Overall = require('./overall');
+const BestTime = require('./bestTime');
 
 module.exports = {
-  driverModel
+  Overall,
+  BestTime
 };

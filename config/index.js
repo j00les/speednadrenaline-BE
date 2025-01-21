@@ -1,13 +1,26 @@
 require('dotenv').config();
 
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  user: process.env.PG_USER_DEV,
-  host: process.env.PG_HOST_DEV,
-  database: process.env.PG_DATABASE,
-  password: process.env.PG_PASSWORD_DEV,
-  port: process.env.PG_PORT_DEV
-});
-
-module.exports = pool;
+module.exports = {
+  mongodb: {
+    server: '88.223.95.166', // Your MongoDB VPS IP
+    port: 27017, // MongoDB port
+    admin: true, // Enable MongoDB admin access
+    auth: [
+      {
+        database: 'admin', // Auth database
+        username: 'nabiel', // Your MongoDB username
+        password: 'nabielmongo20' // Your MongoDB password
+      }
+    ]
+  },
+  site: {
+    baseUrl: '/', // Base URL for Mongo Express
+    cookieSecret: 'your-secret', // Random string for cookie encryption
+    sessionSecret: 'your-secret' // Random string for session encryption
+  },
+  options: {
+    console: true, // Enable console logs
+    documentsPerPage: 10, // Documents per page in collections
+    readOnly: false // Enable/disable write operations
+  }
+};
