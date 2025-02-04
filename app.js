@@ -3,7 +3,12 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
-const { convertFormattedTimeToRaw } = require('./util');
+const {
+  convertFormattedTimeToRaw,
+  formatGapToFirstPlace,
+  parseLapTime,
+  formatLapTime
+} = require('./util');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -40,9 +45,44 @@ const leaderboardSchema = new mongoose.Schema({
   time: { type: String, required: true }
 });
 
-// Mongoose Models
+const leaderboardHistorySchema = new mongoose.Schema({
+  timestamp: { type: Date, default: Date.now },
+  leaderboard: [
+    {
+      name: String,
+      carName: String,
+      time: String,
+      gapToFirst: String,
+      drivetrain: String
+    }
+  ]
+});
+
+const RunSchema = new mongoose.Schema({
+  runNumber: { type: Number, required: true },
+  time: { type: String, required: true }
+});
+
+const CarSchema = new mongoose.Schema({
+  carName: { type: String, required: true },
+  drivetrain: { type: String, required: true },
+  runs: [RunSchema]
+});
+
+const DriverSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  cars: [CarSchema]
+});
+
+const RunHistorySchema = new mongoose.Schema({
+  timestamp: { type: Date, default: Date.now }, // ✅ Store timestamp
+  runsByDriver: [DriverSchema] // ✅ Store structured data
+});
+
 const Run = mongoose.model('Run', runSchema);
 const Leaderboard = mongoose.model('Leaderboard', leaderboardSchema);
+const LeaderboardHistory = mongoose.model('LeaderboardHistory', leaderboardHistorySchema);
+const RunHistory = mongoose.model('RunHistory', RunHistorySchema);
 
 // Add a new run
 app.post('/addRun', async (req, res) => {
@@ -218,6 +258,119 @@ app.get('/leaderboard', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching leaderboard:', error);
     res.status(500).json({ message: 'Error fetching leaderboard', error });
+  }
+});
+
+app.get('/get-leaderboard-history', async (req, res) => {
+  try {
+    // ✅ Fetch all leaderboard history from the database
+    const history = await LeaderboardHistory.find().sort({ timestamp: -1 }); // Sort by most recent
+
+    // ✅ Send response
+    res.json(history);
+  } catch (error) {
+    console.error('❌ Error fetching leaderboard history:', error);
+    res.status(500).json({ message: 'Error fetching leaderboard history', error });
+  }
+});
+
+app.post('/save-leaderboard-history', async (req, res) => {
+  try {
+    // ✅ Fetch leaderboard sorted by best time
+    const leaderboardData = await Leaderboard.find().sort({ time: 1 });
+
+    if (leaderboardData.length === 0) {
+      return res.status(400).json({ message: 'No leaderboard data available to save.' });
+    }
+
+    // ✅ Convert first place time to milliseconds
+    const firstPlaceTimeMs = parseLapTime(leaderboardData[0].time);
+    console.log('🏆 First Place Time (ms):', firstPlaceTimeMs); // Debugging
+
+    // ✅ Map leaderboard entries and calculate correct `gapToFirst`
+    const leaderboardWithGaps = leaderboardData.map((entry) => {
+      const entryTimeMs = parseLapTime(entry.time);
+
+      const gap = Math.max(0, entryTimeMs - firstPlaceTimeMs); // ✅ Ensure non-negative gap
+
+      return {
+        name: entry.name,
+        carName: entry.carName,
+        time: formatLapTime(entryTimeMs),
+        gapToFirst: formatGapToFirstPlace(gap),
+        drivetrain: entry.drivetrain
+      };
+    });
+
+    const historyEntry = new LeaderboardHistory({
+      timestamp: new Date(),
+      leaderboard: leaderboardWithGaps
+    });
+
+    await historyEntry.save();
+    res.json({ message: 'Leaderboard saved to history.', historyEntry });
+  } catch (error) {
+    console.error('❌ Error saving leaderboard to history:', error);
+    res.status(500).json({ message: 'Error saving history.', error });
+  }
+});
+
+app.post('/save-run-history', async (req, res) => {
+  try {
+    // ✅ Fetch all runs grouped by driver & car
+    const runsGrouped = await Run.aggregate([
+      {
+        $group: {
+          _id: { name: '$name', carName: '$carName', drivetrain: '$drivetrain' },
+          runs: { $push: { runNumber: '$runNumber', rawTime: '$rawTime', time: '$time' } }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          name: '$_id.name',
+          cars: [
+            {
+              carName: '$_id.carName',
+              drivetrain: '$_id.drivetrain',
+              runs: '$runs'
+            }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: '$name',
+          cars: { $push: '$cars' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          name: '$_id',
+          cars: {
+            $reduce: {
+              input: '$cars',
+              initialValue: [],
+              in: { $concatArrays: ['$$value', '$$this'] }
+            }
+          }
+        }
+      }
+    ]);
+
+    if (!runsGrouped.length) {
+      return res.status(400).json({ message: 'No runs available to save!' });
+    }
+
+    // ✅ Save to RunHistory collection
+    const historyEntry = new RunHistory({ runsByDriver: runsGrouped });
+    await historyEntry.save();
+
+    res.json({ message: 'Run history saved successfully.', historyEntry });
+  } catch (error) {
+    console.error('❌ Error saving run history:', error);
+    res.status(500).json({ message: 'Error saving run history', error });
   }
 });
 
