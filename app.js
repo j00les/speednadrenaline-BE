@@ -25,7 +25,8 @@ app.use(cors());
 
 // MongoDB connection
 mongoose
-  .connect('mongodb://172.24.140.82:27017/websocket_data', {})
+  // .connect('mongodb://172.24.140.82:27017/websocket_data', {})
+  .connect('mongodb://nabiel:nabielmongo20@88.223.95.166:27017/speed_n_adrenaline', {})
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
@@ -75,8 +76,8 @@ const DriverSchema = new mongoose.Schema({
 });
 
 const RunHistorySchema = new mongoose.Schema({
-  timestamp: { type: Date, default: Date.now }, // ✅ Store timestamp
-  runsByDriver: [DriverSchema] // ✅ Store structured data
+  timestamp: { type: Date, default: Date.now },
+  runsByDriver: [DriverSchema]
 });
 
 const Run = mongoose.model('Run', runSchema);
@@ -371,6 +372,16 @@ app.post('/save-run-history', async (req, res) => {
   } catch (error) {
     console.error('❌ Error saving run history:', error);
     res.status(500).json({ message: 'Error saving run history', error });
+  }
+});
+
+app.get('/get-run-history', async (req, res) => {
+  try {
+    const runHistories = await RunHistory.find({});
+    res.json(runHistories);
+  } catch (error) {
+    console.error('❌ Error fetching run history:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
