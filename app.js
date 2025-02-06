@@ -80,8 +80,8 @@ const RunHistorySchema = new mongoose.Schema({
   runsByDriver: [DriverSchema]
 });
 
-const Run = mongoose.model('Run', runSchema);
 const Leaderboard = mongoose.model('Leaderboard', leaderboardSchema);
+const Run = mongoose.model('Run', runSchema);
 const LeaderboardHistory = mongoose.model('LeaderboardHistory', leaderboardHistorySchema);
 const RunHistory = mongoose.model('RunHistory', RunHistorySchema);
 
@@ -123,58 +123,6 @@ app.post('/addRun', async (req, res) => {
     res.status(201).json({ message: 'Run added successfully', runsGrouped });
   } catch (error) {
     res.status(500).json({ message: 'Error adding run', error });
-  }
-});
-
-// Delete a run
-
-app.delete('/deleteRun', async (req, res) => {
-  const { name, carName, time } = req.query; // ✅ Get from query params
-
-  try {
-    if (!name || !carName || !time) {
-      return res.status(400).json({ message: 'Missing required query parameters' });
-    }
-
-    // ✅ Convert formatted time to raw time if necessary
-    const rawTime = convertFormattedTimeToRaw(time);
-
-    // ✅ Delete the run from Runs collection
-    const deletedRun = await Run.findOneAndDelete({ name, carName, time: rawTime });
-
-    if (!deletedRun) {
-      return res.status(404).json({ message: 'Run not found' });
-    }
-
-    // ✅ Find the next best run for this driver-car combination
-    const nextBestRun = await Run.findOne({ name, carName }).sort({ time: 1 });
-
-    if (nextBestRun) {
-      // ✅ Update leaderboard with the next best time
-      await Leaderboard.findOneAndUpdate(
-        { name, carName },
-        { time: nextBestRun.time },
-        { new: true }
-      );
-    } else {
-      // 🚨 No runs left, remove from leaderboard
-      await Leaderboard.findOneAndDelete({ name, carName });
-    }
-
-    // ✅ Fetch updated leaderboard and send WebSocket event
-    const updatedLeaderboard = await Leaderboard.find().sort({ time: 1 });
-    const runsGrouped = await Run.aggregate([
-      { $group: { _id: { name: '$name', carName: '$carName' }, runs: { $push: '$$ROOT' } } },
-      { $project: { _id: 0, name: '$_id.name', carName: '$_id.carName', runs: 1 } },
-      { $group: { _id: '$name', cars: { $push: { carName: '$carName', runs: '$runs' } } } }
-    ]);
-
-    io.emit('runDeleted', { leaderboardEntry: updatedLeaderboard, runsGrouped });
-
-    res.json({ message: 'Run deleted successfully', updatedLeaderboard, runsGrouped });
-  } catch (error) {
-    console.error('❌ Error deleting run:', error);
-    res.status(500).json({ message: 'Error deleting run', error });
   }
 });
 
@@ -382,6 +330,19 @@ app.get('/get-run-history', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching run history:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.delete('/clear-data', async (req, res) => {
+  try {
+    // Clear both collections
+    await Leaderboard.deleteMany({});
+    await Run.deleteMany({});
+
+    res.json({ message: 'Successfully cleared leaderboard and runs data' });
+  } catch (error) {
+    console.error('❌ Error clearing data:', error);
+    res.status(500).json({ message: 'Error clearing data', error });
   }
 });
 
